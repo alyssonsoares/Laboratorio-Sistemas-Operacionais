@@ -19,6 +19,8 @@ typedef struct task_t
 		int flag;
   // preencher quando necessário
 		ucontext_t context; // Contexto da tarefa
+		int prioridade_estatica;
+		int prioridade_dinamica;
 } task_t ;
 
 // estrutura que define um semáforo

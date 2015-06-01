@@ -18,12 +18,33 @@ task_t *task_corrente;
 task_t *ready = NULL;
 task_t *next = NULL;
 int id;
+int alpha= -1;
 
 // funções gerais ==============================================================
 
 task_t *scheduler(){
 	if (ready > 0){
 		task_t* task_selecionada = ready;
+ 		task_t *task_next = ready->next;
+		
+// Seleciona task
+		do{
+			if (task_next->prioridade_dinamica < task_selecionada->prioridade_dinamica){
+				task_selecionada = task_next;
+			}
+			task_next = task_next->next;
+		}while(task_next != ready);
+// Envelhecimento
+		task_next = ready;
+		do{
+			if (task_next->tid != task_selecionada->tid){
+				task_next->prioridade_dinamica = task_next->prioridade_dinamica + alpha;
+			}else{
+				task_selecionada->prioridade_dinamica = task_selecionada->prioridade_estatica;
+			}
+			task_next = task_next->next;
+		}while (task_next != ready);
+
 		return task_selecionada;
 	}else return 0;
 }
@@ -35,7 +56,9 @@ void dispatcher_body (){ // dispatcher é uma tarefa
 	while ( ((queue_t *) ready) > 0 ){
 		next = scheduler(); // scheduler é uma função
 		if (next){
+			#ifdef DEBUG
 			printf("task_dispatcher-%p \n",next);
+			#endif
 			queue_remove((queue_t **) &ready,(queue_t*) next);
 			// ações antes de lançar a tarefa "next", se houverem
 			task_switch (next); // transfere controle para a tarefa "next"
@@ -105,9 +128,11 @@ int task_create (task_t *task,			// descritor da nova tarefa
 	makecontext(&context, (void*) (*start_func), 1, arg);
 	task->context = context;
 
-	if (task != &dispatcher)
-	queue_append((queue_t **) &ready,(queue_t*) task);
-
+	if (task != &dispatcher){
+		queue_append((queue_t **) &ready,(queue_t*) task);
+		task->prioridade_estatica = 0;
+		task->prioridade_dinamica = 0;
+	}
 	#ifdef DEBUG
 	printf("task_create: criou tarefa %d\n",task->tid);
 	#endif	
@@ -173,11 +198,23 @@ void task_yield (){
 
 // define a prioridade estática de uma tarefa (ou a tarefa atual)
 void task_setprio (task_t *task, int prio){
+	 if (task == NULL){
+		task_corrente->prioridade_estatica = prio;
+		task_corrente->prioridade_dinamica = prio;
+	}else if (task->prioridade_estatica > -20 && task->prioridade_estatica < 20){
+		task->prioridade_estatica = prio;
+		task->prioridade_dinamica = prio;
+	}
 }
 
 // retorna a prioridade estática de uma tarefa (ou a tarefa atual)
 int task_getprio (task_t *task){
-	return 0;
+	int num;
+	 if (task == NULL) num = task_corrente->prioridade_estatica;
+		else num = task->prioridade_estatica;
+	return num;
+
+
 }
 
 // operações de sincronização ==================================================
