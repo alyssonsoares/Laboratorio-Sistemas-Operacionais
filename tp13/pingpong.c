@@ -23,23 +23,38 @@ int id;
 int alpha= -1;
 int quantum;
 
+int time;
+int taskStart, taskEnd;
+
 //tratador de sinal
 struct sigaction action ;
 //timer
 struct itimerval timer;
-
+unsigned int systime();
 
 // funções gerais ==============================================================
 
+
 void ticks(int signum){
+	time++;
 	if(task_corrente->taskUser){
 		if(quantum == 0){
-
+			taskEnd=systime();
+			task_corrente->tempoExec += taskEnd - taskStart;
+			task_corrente->ativacoes++;
+			taskEnd = 0;
+			taskStart = 0;
 			task_yield();
 		}
 		else{
 			quantum--;
 		}
+	}else{
+		taskEnd = systime();
+		task_corrente->tempoExec += taskEnd - taskStart;
+		task_corrente->ativacoes++;
+		taskStart = 0;
+		taskEnd = 0;
 	}
 }
 
@@ -81,6 +96,7 @@ void dispatcher_body (){ // dispatcher é uma tarefa
 			printf("task_dispatcher-%p \n",next);
 			#endif
 			quantum=20;
+			taskStart=systime();
 			queue_remove((queue_t **) &ready,(queue_t*) next);
 			// ações antes de lançar a tarefa "next", se houverem
 			task_switch (next); // transfere controle para a tarefa "next"
@@ -115,9 +131,8 @@ void pingpong_init (){
 	// Dispatcher
 	task_create(&dispatcher, (void*) (dispatcher_body),NULL);
 	dispatcher.taskUser=FALSE;
-	#ifdef DEBUG
-	printf("pingpong_init: criou tarefa %d\n",task_main.tid);
-	#endif
+	
+
 	action.sa_handler = ticks ;
 	sigemptyset (&action.sa_mask) ;
 	action.sa_flags = 0 ;
@@ -175,6 +190,9 @@ int task_create (task_t *task,			// descritor da nova tarefa
 		task->prioridade_dinamica = 0;
 		task->taskUser=TRUE;
 	}
+	task->ativacoes = 0;
+	task-> tempoExec = 0;
+
 	#ifdef DEBUG
 	printf("task_create: criou tarefa %d\n",task->tid);
 	#endif	
@@ -186,6 +204,8 @@ void task_exit (int exitCode){
 	printf("task_exit: tarefa %d sendo encerrada \n",task_corrente->tid);
 	#endif
 	task_corrente->flag=TRUE;
+
+	printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n",task_corrente->tid, systime(), task_corrente->tempoExec, task_corrente->ativacoes);
 
 	if (task_corrente == &dispatcher){
 		task_switch(&task_main);
@@ -274,7 +294,7 @@ void task_sleep (int t){
 
 // retorna o relógio atual (em milisegundos)
 unsigned int systime (){
-	return 0;
+	return time;
 }
 
 // operações de IPC ============================================================
