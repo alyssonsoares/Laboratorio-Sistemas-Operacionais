@@ -49,12 +49,6 @@ void ticks(int signum){
 		else{
 			quantum--;
 		}
-	}else{
-		taskEnd = systime();
-		task_corrente->tempoExec += taskEnd - taskStart;
-		task_corrente->ativacoes++;
-		taskStart = 0;
-		taskEnd = 0;
 	}
 }
 
@@ -89,7 +83,10 @@ void dispatcher_body (){ // dispatcher é uma tarefa
 	#ifdef DEBUG
 	printf("dispatcher: inicioucom fila size = %d\n",queue_size((queue_t *) ready));
 	#endif
+	int startDisp=0;
 	while ( ((queue_t *) ready) > 0 ){
+		task_corrente->ativacoes++;
+		startDisp=systime();
 		next = scheduler(); // scheduler é uma função
 		if (next){
 			#ifdef DEBUG
@@ -98,6 +95,8 @@ void dispatcher_body (){ // dispatcher é uma tarefa
 			quantum=20;
 			taskStart=systime();
 			queue_remove((queue_t **) &ready,(queue_t*) next);
+			task_corrente->tempoExec+=startDisp - systime();
+			startDisp=0;
 			// ações antes de lançar a tarefa "next", se houverem
 			task_switch (next); // transfere controle para a tarefa "next"
 			// ações após retornar da tarefa "next", se houverem
