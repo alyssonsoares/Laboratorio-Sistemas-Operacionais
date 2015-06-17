@@ -31,6 +31,8 @@ struct sigaction action ;
 //timer
 struct itimerval timer;
 unsigned int systime();
+void task_yield();
+void task_exit();
 
 // funções gerais ==============================================================
 

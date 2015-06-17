@@ -25,12 +25,15 @@ int quantum;
 
 int time;
 int taskStart, taskEnd;
+int startDisp=0;
 
 //tratador de sinal
 struct sigaction action ;
 //timer
 struct itimerval timer;
 unsigned int systime();
+void task_yield();
+void task_exit();
 
 // funções gerais ==============================================================
 
@@ -42,13 +45,21 @@ void ticks(int signum){
 			taskEnd=systime();
 			task_corrente->tempoExec += taskEnd - taskStart;
 			task_corrente->ativacoes++;
-			taskEnd = 0;
-			taskStart = 0;
+			//taskEnd = 0;
+			//taskStart = 0;
 			task_yield();
 		}
 		else{
 			quantum--;
 		}
+	}else{
+		/*if(quantum==0){
+			taskEnd=systime();
+			task_corrente->tempoExec += taskEnd - taskStart;
+			task_corrente->ativacoes++;
+			taskEnd = 0;
+			taskStart = 0;	
+		}*/
 	}
 }
 
@@ -83,10 +94,9 @@ void dispatcher_body (){ // dispatcher é uma tarefa
 	#ifdef DEBUG
 	printf("dispatcher: inicioucom fila size = %d\n",queue_size((queue_t *) ready));
 	#endif
-	int startDisp=0;
 	while ( ((queue_t *) ready) > 0 ){
 		task_corrente->ativacoes++;
-		startDisp=systime();
+		
 		next = scheduler(); // scheduler é uma função
 		if (next){
 			#ifdef DEBUG
@@ -95,7 +105,7 @@ void dispatcher_body (){ // dispatcher é uma tarefa
 			quantum=20;
 			taskStart=systime();
 			queue_remove((queue_t **) &ready,(queue_t*) next);
-			task_corrente->tempoExec+=startDisp - systime();
+			task_corrente->tempoExec+=  systime()-startDisp;
 			startDisp=0;
 			// ações antes de lançar a tarefa "next", se houverem
 			task_switch (next); // transfere controle para a tarefa "next"
@@ -118,6 +128,11 @@ void pingpong_init (){
 	task_main.prev = NULL;
 	task_main.tid = id++;
 	task_main.taskUser=TRUE;
+	task_main.prioridade_dinamica=0;
+	task_main.prioridade_estatica=0;
+	task_main.ativacoes=0;
+	task_main.tempoExec=0;
+	queue_append((queue_t **)&ready,(queue_t*)&task_main);
 
 
 	// Referente ao contexto
@@ -130,7 +145,8 @@ void pingpong_init (){
 	// Dispatcher
 	task_create(&dispatcher, (void*) (dispatcher_body),NULL);
 	dispatcher.taskUser=FALSE;
-	
+	dispatcher.ativacoes=0;
+	dispatcher.tempoExec=0;
 
 	action.sa_handler = ticks ;
 	sigemptyset (&action.sa_mask) ;
@@ -149,6 +165,7 @@ void pingpong_init (){
 		perror ("Erro em setitimer: ") ;
 		exit (1) ;
 	}
+	task_yield();
 
 }
 
@@ -252,7 +269,8 @@ void task_resume (task_t *task){
 // prontas ("ready queue")
 void task_yield (){
 	//printf("task_yield-%p \n", task_corrente);
-	if(task_corrente!= &task_main)
+	//if(task_corrente!= &task_main)
+	startDisp=systime();
 		queue_append((queue_t**)&ready,(queue_t*)task_corrente);
 	task_switch(&dispatcher);
 }
